@@ -1,71 +1,110 @@
-use params::{AudioCodec, OutputFormat};
+use params::{AudioChannels, AudioCodec, OutputFormat, OutputPreset, VideoScale};
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
     process::Command,
 };
 
-use crate::probe::Probe;
 use self::params::VideoCodec;
+use crate::{probe::Probe, utility::string};
 
 pub(self) mod params;
 
-
 #[derive(Default)]
-pub struct ConversionOption<'a> {
-    pub input: &'a str,
-    pub output: &'a str,
-    pub audio_bitrate: Option<&'a str>,
+pub struct ConversionOption {
+    pub input: String,
+    pub output: String,
+    pub audio_bitrate: Option<usize>,
     pub audio_code: Option<AudioCodec>,
     pub video_code: Option<VideoCodec>,
-    pub video_bitrate: Option<&'a str>,
+    pub video_bitrate: Option<usize>,
     pub output_format: Option<OutputFormat>,
+    pub resolution: Option<VideoScale>,
+    pub audio_sample_rate: Option<usize>,
+    pub channels: Option<AudioChannels>,
+    pub video_quality: Option<u8>,
+    pub preset: Option<OutputPreset>,
+    pub overwrite: bool,
 }
 
-impl<'a> IntoIterator for &'a ConversionOption<'a> {
-    type Item = &'a str;
-    type IntoIter = std::vec::IntoIter<&'a str>;
+impl<'a> IntoIterator for &'a ConversionOption {
+    type Item = String;
+    type IntoIter = std::vec::IntoIter<String>;
 
     fn into_iter(self) -> Self::IntoIter {
-        let mut opts = vec!["-i", &self.input, "-progress", "pipe:1"];
+        let mut opts = vec![
+            string("-i"),
+            string(&self.input),
+            string("-progress"),
+            string("pipe:1"),
+        ];
 
-        // video codec 
+        // video codec
         if let Some(vc) = &self.video_code {
-            opts.push("-c:v");
-            opts.push(vc.as_ref());
+            opts.push(format!("-c:v {vc}"));
         }
 
-        // video bitrate
-        if let Some(br) = self.video_bitrate  {
-            opts.push("-b:v");
-            opts.push(br);
-        }
-        
         // set audio codec
         if let Some(ac) = &self.audio_code {
-            opts.push("-c:a");
-            opts.push(ac.as_ref());
-        }
-
-        // audio bitrate
-        if let Some(br) = self.audio_bitrate  {
-            opts.push("-a:v");
-            opts.push(br);
+            opts.push(format!("-c:a {ac}"));
         }
 
         // output format
         if let Some(f) = &self.output_format {
-            opts.push("-f");
-            opts.push(f.as_ref());
+            opts.push(format!("-f {f}"));
         }
 
-        opts.push(&self.output);
+        // video bitrate
+        if let Some(br) = self.video_bitrate {
+            opts.push(format!("-b:v {br}"));
+        }
+
+        // audio bitrate
+        if let Some(br) = self.audio_bitrate {
+            opts.push(format!("-a:v {br}"));
+        }
+
+        // video scale
+        if let Some(scale) = &self.resolution {
+            opts.push(format!("-s {scale}"));
+        }
+
+        // audio sample rate
+        if let Some(rate) = self.audio_sample_rate {
+            opts.push(format!("{rate}"));
+        }
+
+        // channels 
+        if let Some(ch) = &self.channels {
+            let ch: u8 = match ch {
+                AudioChannels::Mono => 1,
+                AudioChannels::Stereo => 2
+            };
+
+            opts.push(format!("-ac {ch}"));
+        }
+
+        // video quality
+        if let Some(vq) = self.video_quality {
+            opts.push(format!("-crf {vq}"));
+        }
+
+        // preset
+        if let Some(preset) = &self.preset {
+            opts.push(format!("-preset {preset}"));
+        }
+
+        // output
+        opts.push(self.output.to_string());
+        if self.overwrite {
+            opts.push("-y".to_string());
+        }
 
         opts.into_iter()
     }
 }
 
 /// Run conversion of an input file to an output file
-pub async fn run<'a>(opts: ConversionOption<'a>) -> std::io::Result<()> {
+pub async fn run(opts: ConversionOption) -> std::io::Result<()> {
     let mut cmd = Command::new("ffmpeg")
         .args(opts.into_iter())
         .stdout(std::process::Stdio::piped())
@@ -88,8 +127,8 @@ pub async fn run<'a>(opts: ConversionOption<'a>) -> std::io::Result<()> {
             if line.starts_with("out_time_us") {
                 let split: Vec<&str> = line.split("=").collect();
 
-                let ds = split.get(1).unwrap_or(&"0"); // duration str
-                let pd = ds.parse::<f64>().unwrap(); // parse duration
+                let ds = *(split.get(1).unwrap_or(&"0")); // duration str
+                let pd = ds.parse::<f64>().unwrap_or_default(); // parse duration
 
                 let current_duration = pd / 1e6;
                 let total_duration = probe.duration;
@@ -118,8 +157,8 @@ mod test {
 
     #[tokio::test]
     async fn test_converter() {
-        let input = "demo.mkv";
-        let output = "demo.mp4";
+        let input = "demo.mp4".to_string();
+        let output = "output.mp4".to_string();
 
         let opts = ConversionOption {
             input,
@@ -128,10 +167,6 @@ mod test {
         };
 
         let con = converter::run(opts).await;
-        if let Err(err) = &con {
-            eprintln!("err: {err}")
-        }
-
         assert!(con.is_ok())
     }
 }
