@@ -40,32 +40,38 @@ impl<'a> IntoIterator for &'a ConversionOption {
 
         // video codec
         if let Some(vc) = &self.video_code {
-            opts.push(format!("-c:v {vc}"));
+            opts.push(format!("-c:v"));
+            opts.push(vc.to_string());
         }
 
         // set audio codec
         if let Some(ac) = &self.audio_code {
-            opts.push(format!("-c:a {ac}"));
+            opts.push(format!("-c:a"));
+            opts.push(ac.to_string());
         }
 
         // output format
         if let Some(f) = &self.output_format {
-            opts.push(format!("-f {f}"));
+            opts.push(format!("-f"));
+            opts.push(f.to_string());
         }
 
         // video bitrate
         if let Some(br) = self.video_bitrate {
-            opts.push(format!("-b:v {br}"));
+            opts.push(format!("-b:v"));
+            opts.push(br.to_string());
         }
 
         // audio bitrate
         if let Some(br) = self.audio_bitrate {
-            opts.push(format!("-a:v {br}"));
+            opts.push(format!("-a:v"));
+            opts.push(br.to_string());
         }
 
         // video scale
         if let Some(scale) = &self.resolution {
-            opts.push(format!("-s {scale}"));
+            opts.push(format!("-s"));
+            opts.push(scale.to_string());
         }
 
         // audio sample rate
@@ -80,17 +86,20 @@ impl<'a> IntoIterator for &'a ConversionOption {
                 AudioChannels::Stereo => 2
             };
 
-            opts.push(format!("-ac {ch}"));
+            opts.push(format!("-ac"));
+            opts.push(ch.to_string());
         }
 
         // video quality
         if let Some(vq) = self.video_quality {
-            opts.push(format!("-crf {vq}"));
+            opts.push(format!("-crf"));
+            opts.push(vq.to_string());
         }
 
         // preset
         if let Some(preset) = &self.preset {
-            opts.push(format!("-preset {preset}"));
+            opts.push(format!("-preset"));
+            opts.push(preset.to_string());
         }
 
         // output
@@ -153,7 +162,7 @@ pub async fn run(opts: ConversionOption) -> std::io::Result<()> {
 
 #[cfg(test)]
 mod test {
-    use crate::converter::{self, ConversionOption};
+    use crate::converter::{self, params::OutputPreset, ConversionOption};
 
     #[tokio::test]
     async fn test_converter() {
@@ -163,6 +172,7 @@ mod test {
         let opts = ConversionOption {
             input,
             output,
+            overwrite: true,
             ..Default::default()
         };
 

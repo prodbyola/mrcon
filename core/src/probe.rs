@@ -58,9 +58,9 @@ impl Probe {
             .unwrap_or_default();
 
         let tags = format["tags"].as_object().unwrap();
-        let title = tags["title"]
-            .as_str()
-            .map(|s| s.to_string())
+        let title = tags
+            .get("title")
+            .map(|v| v.as_str().unwrap_or_default().to_string())
             .unwrap_or_default();
 
         let probe = Self {
